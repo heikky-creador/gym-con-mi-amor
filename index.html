@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>50 Pieces — Puzzle</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main class="app">
+  <header class="hero">
+    <div>
+      <span class="eyebrow">TOUCH PUZZLE</span>
+      <h1>50 Pieces</h1>
+      <p>Arma la imagen arrastrando las piezas con el dedo.</p>
+    </div>
+    <div class="score"><strong id="score">0/50</strong><span>correctas</span></div>
+  </header>
+
+  <nav class="controls" aria-label="Controles del juego">
+    <button id="preview" type="button">👁 Ver imagen</button>
+    <button id="shuffle" type="button" class="primary">🔀 Mezclar</button>
+    <button id="reset" type="button">↻ Reiniciar</button>
+  </nav>
+
+  <section class="card">
+    <div id="puzzle" class="puzzle"></div>
+    <p id="status" class="status" aria-live="polite">Cargando puzzle…</p>
+  </section>
+</main>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">Imagen completa</h2>
+      <button id="close" type="button" aria-label="Cerrar">×</button>
+    </div>
+    <img id="previewImage" src="./foto-puzzle.jpg" alt="Imagen completa del puzzle">
+    <button id="close2" type="button" class="primary wide">Volver al puzzle</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const imageUrl = "./foto-puzzle.jpg";
+  const rows = 5, cols = 10, total = 50;
+  const puzzle = document.getElementById("puzzle");
+  const score = document.getElementById("score");
+  const status = document.getElementById("status");
+  const modal = document.getElementById("modal");
+  const previewImage = document.getElementById("previewImage");
+
+  let order = [];
+  let dragFrom = null;
+  let solved = false;
+
+  // Preload first: if the image cannot be reached, show a clear diagnostic.
+  const image = new Image();
+  image.onload = () => {
+    previewImage.src = imageUrl;
+    init();
+  };
+  image.onerror = () => {
+    status.textContent = "⚠️ No se encontró foto-puzzle.jpg. Sube este archivo al mismo nivel que index.html.";
+    status.className = "status error";
+  };
+  image.src = imageUrl;
+
+  function init() {
+    order = Array.from({length: total}, (_, i) => i);
+    shuffleOrder();
+    render();
+  }
+
+  function shuffleOrder() {
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    if (order.every((v, i) => v === i)) [order[0], order[1]] = [order[1], order[0]];
+    solved = false;
+  }
+
+  function correctCount() {
+    return order.reduce((n, piece, position) => n + (piece === position ? 1 : 0), 0);
+  }
+
+  function render() {
+    puzzle.innerHTML = "";
+    const count = correctCount();
+    score.textContent = count + "/50";
+
+    order.forEach((piece, position) => {
+      const tile = document.createElement("button");
+      tile.type = "button";
+      tile.className = "tile" + (piece === position ? " correct" : "");
+      tile.dataset.position = position;
+      tile.dataset.piece = piece;
+      tile.setAttribute("aria-label", "Pieza " + (piece + 1) + ", posición " + (position + 1));
+
+      const r = Math.floor(piece / cols);
+      const c = piece % cols;
+      tile.style.backgroundImage = 'url("' + imageUrl + '")';
+      tile.style.backgroundPosition =
+        (c * 100 / (cols - 1)) + "% " + (r * 100 / (rows - 1)) + "%";
+
+      tile.addEventListener("pointerdown", pointerDown);
+      puzzle.appendChild(tile);
+    });
+
+    if (count === total) {
+      if (!solved) {
+        solved = true;
+        status.textContent = "🎉 ¡Felicitaciones! Completaste las 50 piezas.";
+        status.className = "status success";
+      }
+    } else {
+      status.textContent = count
+        ? "✅ " + count + " piezas están en su lugar correcto."
+        : "Arrastra una pieza sobre otra para intercambiarlas.";
+      status.className = "status";
+    }
+  }
+
+  function pointerDown(e) {
+    dragFrom = Number(e.currentTarget.dataset.position);
+    const tile = e.currentTarget;
+    tile.classList.add("dragging");
+    tile.setPointerCapture?.(e.pointerId);
+    tile.addEventListener("pointerup", pointerUp, {once:true});
+    tile.addEventListener("pointercancel", pointerUp, {once:true});
+  }
+
+  function pointerUp(e) {
+    const tile = e.currentTarget;
+    tile.classList.remove("dragging");
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".tile");
+    if (target && puzzle.contains(target)) {
+      const to = Number(target.dataset.position);
+      if (to !== dragFrom) {
+        [order[dragFrom], order[to]] = [order[to], order[dragFrom]];
+      }
+    }
+    dragFrom = null;
+    render();
+  }
+
+  document.getElementById("shuffle").addEventListener("click", () => {
+    shuffleOrder();
+    render();
+  });
+
+  document.getElementById("reset").addEventListener("click", () => {
+    order = Array.from({length: total}, (_, i) => i);
+    solved = false;
+    render();
+    status.textContent = "Juego reiniciado.";
+  });
+
+  function showModal() { modal.hidden = false; }
+  function hideModal() { modal.hidden = true; }
+
+  document.getElementById("preview").addEventListener("click", showModal);
+  document.getElementById("close").addEventListener("click", hideModal);
+  document.getElementById("close2").addEventListener("click", hideModal);
+  modal.addEventListener("click", e => { if (e.target === modal) hideModal(); });
+})();
+</script>
+</body>
+</html>
